@@ -25,7 +25,6 @@ body{
   background:linear-gradient(-45deg,var(--bg1),var(--bg2),var(--bg3));
   background-size:400% 400%;
   animation:gradientBG 12s ease infinite;
-  transition:.4s;
 }
 
 @keyframes gradientBG{
@@ -34,16 +33,9 @@ body{
   100%{background-position:0% 50%}
 }
 
-.light{
-  --bg1:#e0f7ff;
-  --bg2:#ffffff;
-  --bg3:#c9f0ff;
-  --text:#111;
-  --accent:#0088ff;
-}
-
 h1{
   margin-top:15px;
+  text-align:center;
   text-shadow:0 0 20px var(--accent);
 }
 
@@ -62,63 +54,50 @@ button{
   background:var(--accent);
   color:#000;
   font-weight:bold;
-  transition:.3s;
-}
-
-button:hover{
-  transform:scale(1.05);
-  box-shadow:0 0 15px var(--accent);
 }
 
 .game-container{
+  width:95%;
+  max-width:420px;
   backdrop-filter:blur(10px);
   background:rgba(255,255,255,0.05);
-  padding:20px;
+  padding:15px;
   border-radius:15px;
   box-shadow:0 0 25px rgba(0,0,0,0.5);
 }
 
 canvas{
+  width:100%;
+  height:auto;
   background:#000;
   border-radius:10px;
   box-shadow:0 0 20px var(--accent);
+  touch-action:none;
 }
 
 .score{
   margin-top:10px;
   text-align:center;
+  font-size:14px;
 }
 
 .signature{
   margin-top:auto;
   padding:20px;
-  font-size:20px;
-  font-weight:bold;
-  letter-spacing:2px;
-  text-shadow:0 0 20px var(--accent);
+  font-size:16px;
+  text-align:center;
 }
 
 #menu{
   position:fixed;
   top:0;left:0;
   width:100%;height:100%;
-  background:rgba(0,0,0,0.9);
+  background:rgba(0,0,0,0.95);
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
   z-index:100;
-  color:#fff;
-}
-
-#menu h2{
-  margin-bottom:20px;
-  text-shadow:0 0 15px var(--accent);
-}
-
-#menu button{
-  margin:5px;
-  font-size:18px;
 }
 </style>
 </head>
@@ -132,7 +111,7 @@ canvas{
 <h1>⚡ Ultra Neon Snake</h1>
 
 <div class="game-container">
-<canvas id="game" width="400" height="400"></canvas>
+<canvas id="game"></canvas>
 <div class="score">
 Skor: <span id="score">0</span> |
 En Yüksek Skor: <span id="highscore">0</span>
@@ -142,9 +121,7 @@ En Yüksek Skor: <span id="highscore">0</span>
 </div>
 </div>
 
-<div class="signature">
-M.ALİ ÖZCAN
-</div>
+<div class="signature">M.ALİ ÖZCAN</div>
 
 <div id="menu">
 <h2>Ultra Neon Snake</h2>
@@ -156,110 +133,75 @@ M.ALİ ÖZCAN
 </div>
 
 <script>
-// Canvas ve ayarlar
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
-const boxWidth=20;
-const boxHeight=40; // yılan uzun
+
+function resizeCanvas(){
+  const size=Math.min(window.innerWidth*0.9,400);
+  canvas.width=size;
+  canvas.height=size;
+}
+resizeCanvas();
+window.addEventListener("resize",resizeCanvas);
+
+const box=20;
 let snake,food,score,direction,game,speed;
 let highScore=localStorage.getItem("neonSnakeHigh")||0;
 document.getElementById("highscore").innerText=highScore;
 document.getElementById("menuHigh").innerText=highScore;
 
-// Yeme sesi
-const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
-function playEatSound(){
-  const osc=audioCtx.createOscillator();
-  const gain=audioCtx.createGain();
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.type="square";
-  osc.frequency.value=600;
-  gain.gain.setValueAtTime(0.1,audioCtx.currentTime);
-  osc.start();
-  osc.stop(audioCtx.currentTime+0.1);
-}
-
-// Rastgele elma pozisyonu
 function randomFood(){
-  return {
-    x:Math.floor(Math.random()*20)*boxWidth,
-    y:Math.floor(Math.random()*10)*boxHeight
+  const cells=canvas.width/box;
+  return{
+    x:Math.floor(Math.random()*cells)*box,
+    y:Math.floor(Math.random()*cells)*box
   }
 }
 
-// Yılanın kendiyle çarpışması
-function collision(head,array){return array.some(seg=>seg.x===head.x&&seg.y===head.y)}
-
-// Neon grid
-function drawGrid(){
-  ctx.strokeStyle="rgba(0,255,255,0.1)";
-  for(let i=0;i<400;i+=boxWidth){
-    ctx.beginPath();
-    ctx.moveTo(i,0);ctx.lineTo(i,400);ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0,i);ctx.lineTo(400,i);ctx.stroke();
-  }
+function collision(head,array){
+  return array.some(seg=>seg.x===head.x&&seg.y===head.y)
 }
 
-// Ana çizim fonksiyonu
 function draw(){
   ctx.fillStyle="#000";
-  ctx.fillRect(0,0,400,400);
-  drawGrid();
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Yılan
   snake.forEach((seg,i)=>{
     ctx.fillStyle=i===0?"#00ffcc":"#00aa88";
-    ctx.shadowColor="#00ffcc";
-    ctx.shadowBlur=15;
-    ctx.fillRect(seg.x,seg.y,boxWidth,boxHeight);
+    ctx.fillRect(seg.x,seg.y,box,box);
   });
-  ctx.shadowBlur=0;
 
-  // Elma - yuvarlak
   ctx.fillStyle="red";
-  ctx.shadowColor="red";
-  ctx.shadowBlur=15;
   ctx.beginPath();
-  ctx.arc(food.x + boxWidth/2, food.y + boxHeight/2, boxWidth/2, 0, Math.PI*2);
+  ctx.arc(food.x+box/2,food.y+box/2,box/2,0,Math.PI*2);
   ctx.fill();
-  ctx.shadowBlur=0;
 
-  // Yılanın baş koordinatları
   let headX=snake[0].x;
   let headY=snake[0].y;
-  if(direction==="LEFT") headX-=boxWidth;
-  if(direction==="UP") headY-=boxHeight;
-  if(direction==="RIGHT") headX+=boxWidth;
-  if(direction==="DOWN") headY+=boxHeight;
 
-  // Yılan yemi yedi mi?
+  if(direction==="LEFT") headX-=box;
+  if(direction==="UP") headY-=box;
+  if(direction==="RIGHT") headX+=box;
+  if(direction==="DOWN") headY+=box;
+
   if(headX===food.x && headY===food.y){
     score++;
-    playEatSound();
-    if(speed>40){speed-=5; clearInterval(game); game=setInterval(draw,speed);}
     food=randomFood();
-  }else{snake.pop();}
+  }else{
+    snake.pop();
+  }
 
   const newHead={x:headX,y:headY};
 
-  // Çarpma kontrolü
-  if(headX<0||headY<0||headX>=400||headY>=400||collision(newHead,snake)){
-    if(score>highScore){
-      localStorage.setItem("neonSnakeHigh",score);
-      highScore=score;
-    }
-    resetGame(); // otomatik restart
+  if(headX<0||headY<0||headX>=canvas.width||headY>=canvas.height||collision(newHead,snake)){
+    resetGame();
     return;
   }
 
   snake.unshift(newHead);
   document.getElementById("score").innerText=score;
-  document.getElementById("highscore").innerText=highScore;
 }
 
-// Klavye kontrolü
 document.addEventListener("keydown",e=>{
   if(e.key==="ArrowLeft"&&direction!=="RIGHT") direction="LEFT";
   if(e.key==="ArrowUp"&&direction!=="DOWN") direction="UP";
@@ -267,44 +209,51 @@ document.addEventListener("keydown",e=>{
   if(e.key==="ArrowDown"&&direction!=="UP") direction="DOWN";
 });
 
-// Oyun ayarları
+// Swipe kontrol
+let startX,startY;
+canvas.addEventListener("touchstart",e=>{
+  startX=e.touches[0].clientX;
+  startY=e.touches[0].clientY;
+});
+
+canvas.addEventListener("touchend",e=>{
+  let dx=e.changedTouches[0].clientX-startX;
+  let dy=e.changedTouches[0].clientY-startY;
+
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>0 && direction!=="LEFT") direction="RIGHT";
+    else if(dx<0 && direction!=="RIGHT") direction="LEFT";
+  }else{
+    if(dy>0 && direction!=="UP") direction="DOWN";
+    else if(dy<0 && direction!=="DOWN") direction="UP";
+  }
+});
+
 let currentDifficulty="medium";
 
 function startGame(difficulty){
   document.getElementById("menu").style.display="none";
   currentDifficulty=difficulty;
-  snake=[{x:200,y:200}];
+  snake=[{x:box*5,y:box*5}];
   direction=null;
   score=0;
-  switch(difficulty){
-    case "easy": speed=150; break;
-    case "medium": speed=100; break;
-    case "hard": speed=60; break;
-  }
+  speed=difficulty==="easy"?150:difficulty==="medium"?100:70;
   food=randomFood();
-  document.getElementById("score").innerText=0;
   clearInterval(game);
   game=setInterval(draw,speed);
 }
 
 function resetGame(){
-  snake=[{x:200,y:200}];
+  snake=[{x:box*5,y:box*5}];
   direction=null;
   score=0;
-  switch(currentDifficulty){
-    case "easy": speed=150; break;
-    case "medium": speed=100; break;
-    case "hard": speed=60; break;
-  }
   food=randomFood();
-  clearInterval(game);
-  game=setInterval(draw,speed);
 }
 
-// Dark/Light mod
-function toggleTheme(){document.body.classList.toggle("light");}
+function toggleTheme(){
+  document.body.classList.toggle("light");
+}
 
-// Başlangıçta menü göster
 document.getElementById("menu").style.display="flex";
 </script>
 </body>
