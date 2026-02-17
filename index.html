@@ -10,14 +10,13 @@
   --bg1:#0f0c29;
   --bg2:#302b63;
   --bg3:#24243e;
-  --text:#fff;
   --accent:#00ffcc;
 }
 
 body{
   margin:0;
   font-family:Arial, sans-serif;
-  color:var(--text);
+  color:#fff;
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -25,6 +24,7 @@ body{
   background:linear-gradient(-45deg,var(--bg1),var(--bg2),var(--bg3));
   background-size:400% 400%;
   animation:gradientBG 12s ease infinite;
+  overflow:hidden;
 }
 
 @keyframes gradientBG{
@@ -35,35 +35,17 @@ body{
 
 h1{
   margin-top:15px;
-  text-align:center;
   text-shadow:0 0 20px var(--accent);
-}
-
-.top-bar{
-  width:100%;
-  display:flex;
-  justify-content:flex-end;
-  padding:10px 20px;
-}
-
-button{
-  padding:8px 15px;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
-  background:var(--accent);
-  color:#000;
-  font-weight:bold;
 }
 
 .game-container{
   width:95%;
   max-width:420px;
-  backdrop-filter:blur(10px);
-  background:rgba(255,255,255,0.05);
   padding:15px;
   border-radius:15px;
-  box-shadow:0 0 25px rgba(0,0,0,0.5);
+  backdrop-filter:blur(10px);
+  background:rgba(255,255,255,0.05);
+  transition:transform 0.05s;
 }
 
 canvas{
@@ -78,83 +60,93 @@ canvas{
 .score{
   margin-top:10px;
   text-align:center;
-  font-size:14px;
 }
 
-.signature{
-  margin-top:auto;
-  padding:20px;
-  font-size:16px;
-  text-align:center;
+button{
+  padding:8px 15px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  background:var(--accent);
+  font-weight:bold;
 }
 
 #menu{
   position:fixed;
-  top:0;left:0;
-  width:100%;height:100%;
+  inset:0;
   background:rgba(0,0,0,0.95);
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  z-index:100;
 }
 </style>
 </head>
 
 <body>
 
-<div class="top-bar">
-<button onclick="toggleTheme()">🌙 / ☀️</button>
-</div>
-
 <h1>⚡ Ultra Neon Snake</h1>
 
-<div class="game-container">
-<canvas id="game"></canvas>
+<div class="game-container" id="container">
+<canvas id="game" width="400" height="400"></canvas>
+
 <div class="score">
 Skor: <span id="score">0</span> |
 En Yüksek Skor: <span id="highscore">0</span>
 </div>
+
 <div style="text-align:center;margin-top:10px;">
 <button onclick="resetGame()">Tekrar Başlat</button>
 </div>
 </div>
 
-<div class="signature">M.ALİ ÖZCAN</div>
-
 <div id="menu">
-<h2>Ultra Neon Snake</h2>
-<p>Seviye seçin:</p>
+<h2>Seviye Seç</h2>
 <button onclick="startGame('easy')">Kolay</button>
 <button onclick="startGame('medium')">Orta</button>
 <button onclick="startGame('hard')">Zor</button>
-<h3>En Yüksek Skor: <span id="menuHigh">0</span></h3>
 </div>
 
 <script>
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
-
-function resizeCanvas(){
-  const size=Math.min(window.innerWidth*0.9,400);
-  canvas.width=size;
-  canvas.height=size;
-}
-resizeCanvas();
-window.addEventListener("resize",resizeCanvas);
+const container=document.getElementById("container");
 
 const box=20;
-let snake,food,score,direction,game,speed;
+const grid=20;
+
+let snake,food,score,direction,game,speed,baseSpeed;
+let currentDifficulty="medium";
 let highScore=localStorage.getItem("neonSnakeHigh")||0;
 document.getElementById("highscore").innerText=highScore;
-document.getElementById("menuHigh").innerText=highScore;
 
+/* SCREEN SHAKE */
+function shake(intensity,duration){
+  let start=Date.now();
+  function animate(){
+    let now=Date.now();
+    if(now-start<duration){
+      let x=(Math.random()-0.5)*intensity;
+      let y=(Math.random()-0.5)*intensity;
+      container.style.transform=`translate(${x}px,${y}px)`;
+      requestAnimationFrame(animate);
+    }else{
+      container.style.transform="translate(0,0)";
+    }
+  }
+  animate();
+}
+
+/* EASY ORTA SPAWN */
 function randomFood(){
-  const cells=canvas.width/box;
+  let min=0,max=grid;
+  if(currentDifficulty==="easy"){
+    min=5;
+    max=15;
+  }
   return{
-    x:Math.floor(Math.random()*cells)*box,
-    y:Math.floor(Math.random()*cells)*box
+    x:Math.floor(Math.random()*(max-min)+min)*box,
+    y:Math.floor(Math.random()*(max-min)+min)*box
   }
 }
 
@@ -164,17 +156,23 @@ function collision(head,array){
 
 function draw(){
   ctx.fillStyle="#000";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillRect(0,0,400,400);
 
   snake.forEach((seg,i)=>{
     ctx.fillStyle=i===0?"#00ffcc":"#00aa88";
+    ctx.shadowColor="#00ffcc";
+    ctx.shadowBlur=15;
     ctx.fillRect(seg.x,seg.y,box,box);
   });
+  ctx.shadowBlur=0;
 
   ctx.fillStyle="red";
+  ctx.shadowColor="red";
+  ctx.shadowBlur=15;
   ctx.beginPath();
   ctx.arc(food.x+box/2,food.y+box/2,box/2,0,Math.PI*2);
   ctx.fill();
+  ctx.shadowBlur=0;
 
   let headX=snake[0].x;
   let headY=snake[0].y;
@@ -186,6 +184,15 @@ function draw(){
 
   if(headX===food.x && headY===food.y){
     score++;
+
+    /* HIZ DİNAMİĞİ */
+    if(speed>40){
+      speed-=2; 
+      clearInterval(game);
+      game=setInterval(draw,speed);
+    }
+
+    shake(4,120);
     food=randomFood();
   }else{
     snake.pop();
@@ -193,13 +200,24 @@ function draw(){
 
   const newHead={x:headX,y:headY};
 
-  if(headX<0||headY<0||headX>=canvas.width||headY>=canvas.height||collision(newHead,snake)){
-    resetGame();
+  if(headX<0||headY<0||headX>=400||headY>=400||collision(newHead,snake)){
+    shake(12,300);
+
+    if(score>highScore){
+      highScore=score;
+      localStorage.setItem("neonSnakeHigh",score);
+    }
+
+    clearInterval(game);
+    setTimeout(()=>{
+      document.getElementById("menu").style.display="flex";
+    },300);
     return;
   }
 
   snake.unshift(newHead);
   document.getElementById("score").innerText=score;
+  document.getElementById("highscore").innerText=highScore;
 }
 
 document.addEventListener("keydown",e=>{
@@ -209,17 +227,15 @@ document.addEventListener("keydown",e=>{
   if(e.key==="ArrowDown"&&direction!=="UP") direction="DOWN";
 });
 
-// Swipe kontrol
+/* SWIPE */
 let startX,startY;
 canvas.addEventListener("touchstart",e=>{
   startX=e.touches[0].clientX;
   startY=e.touches[0].clientY;
 });
-
 canvas.addEventListener("touchend",e=>{
   let dx=e.changedTouches[0].clientX-startX;
   let dy=e.changedTouches[0].clientY-startY;
-
   if(Math.abs(dx)>Math.abs(dy)){
     if(dx>0 && direction!=="LEFT") direction="RIGHT";
     else if(dx<0 && direction!=="RIGHT") direction="LEFT";
@@ -229,32 +245,28 @@ canvas.addEventListener("touchend",e=>{
   }
 });
 
-let currentDifficulty="medium";
-
 function startGame(difficulty){
   document.getElementById("menu").style.display="none";
   currentDifficulty=difficulty;
-  snake=[{x:box*5,y:box*5}];
+
+  snake=[{x:10*box,y:10*box}];
   direction=null;
   score=0;
-  speed=difficulty==="easy"?150:difficulty==="medium"?100:70;
+  document.getElementById("score").innerText=0;
+
+  baseSpeed=difficulty==="easy"?150:difficulty==="medium"?110:80;
+  speed=baseSpeed;
+
   food=randomFood();
   clearInterval(game);
   game=setInterval(draw,speed);
 }
 
 function resetGame(){
-  snake=[{x:box*5,y:box*5}];
-  direction=null;
-  score=0;
-  food=randomFood();
+  clearInterval(game);
+  document.getElementById("menu").style.display="flex";
 }
-
-function toggleTheme(){
-  document.body.classList.toggle("light");
-}
-
-document.getElementById("menu").style.display="flex";
 </script>
+
 </body>
 </html>
